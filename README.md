@@ -1,2 +1,2 @@
 # bimm143_githu
-my classwork for BIMM 143 S24 at UCSD.
+my classwork for BIMM 143 S24 at UC San Diego.
