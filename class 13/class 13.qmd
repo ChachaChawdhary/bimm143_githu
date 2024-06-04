@@ -1,0 +1,215 @@
+---
+title: "class 13: RNASeq Analysis"
+author: "Vidisha Marwaha (PID: A16677246)"
+format: pdf
+---
+
+The data for this hands-on session comes from a published RNA-seq experiment where airway smooth muscle cells were treated with dexamethasone, a synthetic glucocorticoid steroid with anti-inflammatory effects (Himes et al. 2014).
+
+## Import Data
+
+We need two things for this analysis: counts and metadata these are called "countData" and "colData" in the DESeq2 world.
+
+```{r}
+counts <- read.csv("airway_scaledcounts.csv", row.names=1)
+metadata <- read.csv("airway_metadata.csv")
+```
+
+```{r}
+head(counts)
+```
+
+```{r}
+head(metadata)
+```
+
+## Examine Data
+
+>Q1. How many genes are in this dataset? 
+
+```{r}
+nrow(counts)
+```
+
+>Q2. How many ‘control’ cell lines do we have?
+
+```{r}
+sum(metadata$dex == "control")
+```
+
+```{r}
+table(metadata$dex)
+```
+
+### Check on the match of metadata with the counts data
+
+```{r}
+colnames(counts)
+```
+
+```{r}
+metadata$id
+```
+
+```{r}
+colnames(counts) == metadata$id
+```
+
+If you want to know all the elements of a vector are TRUE we can use the `all()` function.
+
+```{r}
+all(c(T,T,T, F))
+```
+
+```{r}
+all(colnames(counts) == metadata$id)
+```
+
+## Analysis
+
+I want to start by comparing "control" and "treated" columns. To this I will first find the average for each gene (row) in all "control" columns. Then I will find the average in the "treated" columns. Then I will compare them.
+
+Lets extract the "control" columns first
+
+```{r}
+control.inds <- metadata$dex == "control"
+```
+
+```{r}
+control.counts <- counts[,control.inds]
+```
+
+Now find the mean value per gene using the `apply()` function.
+
+```{r}
+control.mean <- apply(control.counts, 1, mean)
+```
+
+Now do the same for the "treated" columns ie find the `treated.mean` values
+
+```{r}
+treated.mean <- apply(counts[,metadata$dex == "treated"], 1, mean)
+```
+
+Put these two vectors together for ease of book-keeping
+
+```{r}
+meancounts <- data.frame(control.mean, treated.mean)
+head(meancounts)
+```
+
+Lets have a wee look with a quick plot
+
+```{r}
+plot(meancounts)
+```
+
+```{r}
+plot(meancounts, log="xy")
+```
+
+```{r}
+log(10, base=2)
+```
+
+```{r}
+log2(10/10)
+```
+
+```{r}
+log2(20/10)
+```
+
+```{r}
+log2(10/20)
+```
+
+```{r}
+log2(40/10)
+```
+
+We most often work in log2 units because they have a more simple interpretation.
+
+Here we calculate the log2 fold change of treated/control values add it to our wee data frame of results.
+
+
+```{r}
+meancounts$log2fc <- log2(meancounts$treated.mean/meancounts$control.mean)
+
+head(meancounts)
+```
+
+There are some funky answers in there like NaN (Not a Number) and -Inf (minus infinity) that all come because I have zero count genes in my dataset.
+
+It is common practice to filter these zero count genes out before we go too deep.
+
+```{r}
+to.keep.inds <- (rowSums(meancounts[,1:2] == 0) ==0)
+
+mycounts <- meancounts[to.keep.inds,]
+head(mycounts)
+```
+
+> Q. How many genes do we have left after zero count genes filtering?
+
+```{r}
+nrow(mycounts)
+```
+
+A common threshold for calling a gene "up" or "down" is a log2 fold change of +2 or -2.
+
+>Q. How many "up" regulated genes do we have?
+
+```{r}
+sum(mycounts$log2fc >= +2)
+```
+
+>Q. How many "down" regulated genes do we have?
+
+```{r}
+sum(mycounts$log2fc <= -2)
+```
+
+## DESeq2 Analysis
+
+We need to do this analysis properly with our inner stats person kept happy.
+
+```{r}
+#| message: false
+library(DESeq2)
+```
+
+To use DESeq we need to get our input data in very particular format.
+
+```{r}
+dds <- DESeqDataSetFromMatrix(countData=counts, 
+                        colData=metadata, 
+                       design=~dex)
+```
+
+Run DESeq analysis
+
+```{r}
+dds <- DESeq(dds)
+```
+
+Get the results
+
+```{r}
+res <- results(dds)
+head(res)
+```
+
+I want to make a figure showing an overview of all my results to date. A plot of **log2 fold change** vs the **p-value** (adjusted p-value)
+
+```{r}
+plot(res$log2FoldChange, -log(res$padj))
+abline(v=-2, col="gray")
+abline(v=+2, col="gray")
+abline(h=-log(0.05), col="gray")
+```
+
+
+
+
+

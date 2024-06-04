@@ -1,0 +1,229 @@
+---
+title: "class 14: RNASeq mini-analysis"
+author: "Vidisha Marwaha (PID: A16677246)"
+format: pdf
+toc: TRUE
+---
+
+Here we run through a complete RNASeq analysis from counts to pathways and biological insight ...
+
+## Data import
+
+```{r}
+#|Message: false
+library(DESeq2)
+```
+
+```{r}
+metaFile <- read.csv("GSE37704_metadata.csv")
+countData <- read.csv("GSE37704_featurecounts.csv", row.names=1)
+head(countData)
+```
+
+```{r}
+head(metaFile)
+```
+
+
+>Q. Complete the code below to filter countData to exclude genes (i.e. rows) where we have 0 read count across all samples (i.e. columns).
+
+```{r}
+countData <- countData[,-1]
+head(countData)
+```
+
+
+```{r}
+to.keep.inds <- countData[(rowSums(countData)>0),]
+```
+
+```{r}
+head(countData)
+```
+
+
+## Setup for DESeq
+
+```{r}
+library(DESeq2)
+```
+
+```{r}
+dds <-  DESeqDataSetFromMatrix(countData=to.keep.inds,
+                             colData=metaFile,
+                             design=~condition)
+```
+
+```{r}
+dim(countData)
+```
+
+
+## Running DESeq
+
+```{r}
+dds <- DESeq(dds)
+res <- results(dds)
+head(res)
+```
+
+```{r}
+res = results(dds, contrast=c("condition", "hoxa1_kd", "control_sirna"))
+
+```
+
+
+>Q. Call the summary() function on your results to get a sense of how many genes are up or down-regulated at the default 0.1 p-value cutoff. 
+
+```{r}
+summary(res)
+```
+
+## Save results to date
+
+```{r}
+write.csv(res,file="my_results.csv")
+```
+
+## Add gene annotation data (gene names, etc)
+
+```{r}
+library(ggplot2)
+
+data <- as.data.frame(res)
+
+ggplot(data)+
+  aes(log2FoldChange, -log(res$padj))+
+  geom_point()
+```
+
+```{r}
+library("AnnotationDbi")
+library("org.Hs.eg.db")
+
+columns(org.Hs.eg.db)
+
+res$symbol = mapIds(org.Hs.eg.db,
+                    keys=row.names(res), 
+                    keytype="ENSEMBL",
+                    column="SYMBOL",
+                    multiVals="first")
+
+res$entrez = mapIds(org.Hs.eg.db,
+                    keys=row.names(res),
+                    keytype="ENSEMBL",
+                    column="ENTREZID",
+                    multiVals="first")
+
+res$name =   mapIds(org.Hs.eg.db,
+                    keys=row.names(res),
+                    keytype="ENSEMBL",
+                    column="GENENAME",
+                    multiVals="first")
+
+head(res, 10)
+```
+
+## Results and visualization
+
+```{r}
+library(EnhancedVolcano)
+library(ggrepel)
+
+x<- as.data.frame(res)
+
+EnhancedVolcano(x,
+                lab=x$symbol,
+                x='log2FoldChange',
+                y='pvalue')
+```
+
+## Save our results
+
+```{r}
+write.csv(res, file="deseq_results.csv")
+```
+
+## Pathway analysis (kegg, GO, Reactome)
+
+### KEGG
+
+```{r}
+library(pathview)
+library(gage)
+library(gageData)
+data(kegg.sets.hs)
+data(sigmet.idx.hs)
+
+# Focus on signaling and metabolic pathways only
+kegg.sets.hs = kegg.sets.hs[sigmet.idx.hs]
+
+# Examine the first 3 pathways
+head(kegg.sets.hs, 3)
+```
+
+Lets look at the first few down (less) pathways
+
+
+```{r}
+foldchanges = res$log2FoldChange
+names(foldchanges) = res$entrez
+head(foldchanges)
+```
+
+```{r}
+keggres = gage(foldchanges, gsets=kegg.sets.hs)
+
+```
+
+```{r}
+attributes(keggres)
+
+```
+
+```{r}
+head(keggres$less)
+
+```
+
+```{r}
+pathview(gene.data=foldchanges, pathway.id="hsa04110")
+
+```
+![](hsa04110.pathview.png)
+
+
+### GO
+
+```{r}
+data(go.sets.hs)
+data(go.subs.hs)
+
+# Focus on Biological Process subset of GO
+gobpsets = go.sets.hs[go.subs.hs$BP]
+
+gobpres = gage(foldchanges, gsets=gobpsets, same.dir=TRUE)
+
+lapply(gobpres, head)
+```
+
+```{r}
+head(gobpres$less)
+```
+
+### Reactome
+
+We can use reactome as an R package or we can use the online version which has some new interactive visualization features. Lets try the web version ...
+
+It wants us to upload a file with the genes of inrterest (ie. those with significant differences for our experiment)
+
+```{r}
+sig_genes <- res[res$padj <= 0.05 & !is.na(res$padj), "symbol"]
+print(paste("Total number of significant genes:", length(sig_genes)))
+```
+
+
+```{r}
+write.table(sig_genes, file="significant_genes.txt", row.names=FALSE, col.names=FALSE, quote=FALSE)
+```
+
