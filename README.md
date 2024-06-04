@@ -9,6 +9,6 @@ my classwork for BIMM 143 S24 at UC San Diego.
 - Class 7 [Machine Learning 1](https://github.com/ChachaChawdhary/bimm143_githu/blob/main/class%207/class-07.pdf)
 
 ### Using R and other tools for Bioinformatics Analysis
-- Class 8 [An Introduction to Machine Learning (Hierarchical Clustering](
+- Class 8 [An Introduction to Machine Learning (Hierarchical Clustering](https://github.com/ChachaChawdhary/bimm143_githu/blob/main/class%208/class08.pdf)
 - Class 9 [Analyzing High Dimensional Datasets and Unsupervised Learning](
   
